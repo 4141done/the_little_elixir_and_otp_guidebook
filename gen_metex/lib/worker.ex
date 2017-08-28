@@ -48,6 +48,13 @@ defmodule GenMetex.Worker do
 
   # Question: how does returning the empty state here reset the state?
   # Where is that being kept track of on the client side?
+
+  # Answer: this works just like the loop functions I did before genservers.
+  # So this callback will be invoked somewhere and the ```state``` parameter
+  # (in this case called "stats". It is state by its passing position)
+  # will be passed back in to "loop" as the new current value.
+  # Thereful we just need to understand that the new state as stored by
+  # the process is what we pass in the "state" position for any handlers
   def handle_cast(:reset_stats, _stats) do
     {:noreply, %{}}
   end
