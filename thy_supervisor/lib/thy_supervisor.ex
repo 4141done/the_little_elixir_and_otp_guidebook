@@ -9,6 +9,10 @@ defmodule ThySupervisor do
     GenServer.start_link(__MODULE__, [child_spec_list])
   end
 
+  def start_child(supervisor, child_spec) do
+    GenServer.call(supervisor, {:start_child, child_spec})
+  end
+
   def terminate_child(supervisor, pid) when is_pid(pid) do
     GenServer.call(supervisor, {:terminate_child, pid})
   end
@@ -33,7 +37,7 @@ defmodule ThySupervisor do
     Process.flag(:trap_exit, true)
     state = child_spec_list 
               |> start_children
-              |> Enum.into(HashDict.new)
+              |> Enum.into(Map.new)
 
     {:ok, state}
   end
@@ -46,7 +50,7 @@ defmodule ThySupervisor do
   def handle_call({:start_child, child_spec}, _from, state) do
     case start_child(child_spec) do
       {:ok, pid} ->
-        new_state = state |> HashDict.put(pid, child_spec)
+        new_state = state |> Map.put(pid, child_spec)
         {:reply, {:ok, pid}, new_state}
 
       :error ->
@@ -57,19 +61,19 @@ defmodule ThySupervisor do
   def handle_call({:terminate_child, pid}, _from, state) do
     case terminate_child(pid) do
       :ok ->
-        new_state = state |> HashDict.delete(pid)
+        new_state = state |> Map.delete(pid)
         {:reply, :ok, new_state}
     end
   end
 
   def handle_call({:restart_child, old_pid}, _from, state) do
-    case HashDict.fetch(state, old_pid) do
+    case Map.fetch(state, old_pid) do
       {:ok, child_spec} ->
         case restart_child(old_pid, child_spec) do
           {:ok, {pid, child_spec}} ->
             new_state = state
-                          |> HashDict.delete(old_pid)
-                          |> HashDict.put(pid, child_spec)
+                          |> Map.delete(old_pid)
+                          |> Map.put(pid, child_spec)
 
             {:reply, {:ok, pid}, new_state}
 
@@ -83,7 +87,7 @@ defmodule ThySupervisor do
   end
 
   def handle_call(:count_children, _from, state) do
-    {:reply, HashDict.size(state), state}
+    {:reply, map_size(state), state}
   end
 
   def handle_call(:which_children, _from, state) do
@@ -91,23 +95,23 @@ defmodule ThySupervisor do
   end
 
   def handle_info({:EXIT, from, :killed}, state) do
-    new_state = state |> HashDict.delete(from)
+    new_state = state |> Map.delete(from)
     {:noreply, new_state}
   end
 
   def handle_info({:EXIT, from, :normal}, state) do
-    new_state = state |> HashDict.delete(from)
+    new_state = state |> Map.delete(from)
     {:noreply, new_state}
   end
 
   def handle_info({:EXIT, old_pid, _reason}, state) do
-    case HashDict.fetch(state, old_pid) do
+    case Map.fetch(state, old_pid) do
       {:ok, child_spec} ->
         case restart_child(old_pid, child_spec) do
           {:ok, {pid, child_spec}} ->
             new_state = state
-                          |> HashDict.delete(old_pid)
-                          |> HashDict.put(pid, child_spec)
+                          |> Map.delete(old_pid)
+                          |> Map.put(pid, child_spec)
 
             {:noreply, new_state}
 
